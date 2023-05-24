@@ -5,9 +5,9 @@ import * as rsa from './rsa'
 import * as bigintConversion from 'bigint-conversion'
 
 function App() {
-  const censo = "http://localhost:3001/";
-  const mesa = "http://localhost:3002/";
-  const urna = "http://localhost:3003/";
+  const censo = "http://localhost:3001/censo/";
+  const mesa = "http://localhost:3002/mesa/";
+  const urna = "http://localhost:3003/urna/";
   const [messagesend, setmessagesend] = useState<String>("");
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const [messagetxt, setmessagetxt] = useState<String>("");
@@ -32,13 +32,13 @@ function App() {
   }, [messagetxt]);
 
   const getcensopubkey = async () => {
-    const res = await axios.get(`${censo}rsapubkey`);
+    const res = await axios.get(`${censo}/pubkey`);
     // res.data es un json
     assignPubKey(rsa.MyRsaPupblicKey.fromJSON(res.data));
     console.log(pubkey);
   }
 
-  const blindMessage = async () => {
+  const blindhash = async () => {
     await getcensopubkey();
     let enc: Boolean = false;
     while (!enc) {
@@ -94,7 +94,7 @@ function App() {
 
         ></textarea>
         <div>
-          <button className='blindbtn' onClick={() => blindMessage()} >blind</button>
+          <button className='blindbtn' onClick={() => blindhash()} >blind</button>
         </div>
         <div>
           <textarea
@@ -106,7 +106,7 @@ function App() {
           ></textarea>
         </div>
         <div>
-          <button className='sendbtn' onClick={async () => await sendMessage()}>send to be signed</button>
+          <button className='sendbtn' onClick={async () => await sendToCenso()}>send to be signed</button>
         </div>
 
         <div>

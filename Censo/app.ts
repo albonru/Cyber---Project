@@ -19,13 +19,12 @@ app.use(cors({
 app.use(bodyParser.urlencoded({ extended : true }));
 app.use(bodyParser.json())
 
-app.get('/',(req: Request, res: Response)=>{
-    res.send('hello world')
+app.get('/censo',(req: Request, res: Response)=>{
+    res.send('hello censo')
 })
 
-app.post('/tosign', async (req: Request, res: Response)=>{
+app.post('/sign', async (req: Request, res: Response)=>{
     let message = req.body.text;
-
     let messageBigint = bigintConversion.base64ToBigint(message);
     console.log("blinded: "+messageBigint)
     let signedbigint = (await rsaKeysPromise).privateKey.sign(messageBigint);
@@ -34,21 +33,27 @@ app.post('/tosign', async (req: Request, res: Response)=>{
     res.json({signed})
 })
 
-app.post('/decrypt', async (req: Request, res: Response)=>{
-    console.log(req.body.text)
-    let message = req.body.text;
-    let messageBigint = bigintConversion.base64ToBigint(message);
-    let descryptedbigint = (await rsaKeysPromise).privateKey.decrypt(messageBigint);
-    let descrypted=bigintConversion.bigintToText(descryptedbigint)
-    console.log('decripted message: '+ descrypted);
-    //funciona 
-})
-
 // cliente pide pubkey, server la manda
-app.get('/rsapubkey', async (req: Request, res: Response)=>{
+app.get('/pubkey', async (req: Request, res: Response)=>{
     const rsaKeys = await rsaKeysPromise
     console.log(rsaKeys)
     res.json(rsaKeys.publicKey.toJSON())
+})
+
+app.post('/login', async (req: Request, res: Response) => {
+    const n1 = "Pepito";
+    const p1 = "1234";
+    const n2 = "Juanito";
+    const p2 = "abcd";
+
+    if((req.name == n1 && req.pw == p1) || (req.name == n2 && req.pw == p2)) {
+        const rsaKeys = await rsaKeysPromise
+        console.log(rsaKeys)
+        res.json(rsaKeys.publicKey.toJSON())
+    }
+    else {
+        res.send("error");
+    }
 })
 
 app.listen(port, function() {
