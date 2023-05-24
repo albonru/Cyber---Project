@@ -1,0 +1,45 @@
+{
+  "name": "example-module",
+  "version": "0.9.0",
+  "private": true,
+  "description": "a",
+  "main": "./dist/cjs/index.node.cjs",
+  "browser": "./dist/esm/index.browser.js",
+  "module": "./dist/esm/index.node.js",
+  "exports": {
+    ".": {
+      "node": {
+        "require": "./dist/cjs/index.node.cjs",
+        "import": "./dist/esm/index.node.js",
+        "module": "./dist/esm/index.node.js"
+      },
+      "default": "./dist/esm/index.browser.js"
+    },
+    "./esm-browser-bundle": "./dist/bundles/esm.min.js",
+    "./iife-browser-bundle": "./dist/bundles/iife.js",
+    "./umd-browser-bundle": "./dist/bundles/umd.js",
+    "./types": "./types/index.d.ts"
+  },
+  "scripts": {
+    "start": "ts-node app.ts",
+    "build:esm": "tsc -m \"es2020\" --outDir ./dist/esm",
+    "build:cjs": "tsc -m \"commonjs\" --outDir ./dist/cjs",
+    "build": "npm run build:esm && npm run build:cjs"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/cors": "^2.8.13",
+    "@types/express": "^4.17.17",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.0.4"
+  },
+  "dependencies": {
+    "@types/is-bigint": "^1.0.0",
+    "big-integer": "^1.6.51",
+    "bigint-conversion": "^2.4.1",
+    "bigint-crypto-utils": "^3.2.2",
+    "cors": "^2.8.5",
+    "express": "^4.18.2"
+  }
+}
