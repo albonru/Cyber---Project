@@ -92,7 +92,7 @@ export const generateKeys = async function (bitlength: number): Promise<KeyPair>
   const d = bcu.modInv(e, phi)
 
   const privateKey = new MyRsaPrivatKey(d, n)
-
+  console.log("userkeys ok");
   return {
     publicKey,
     privateKey
