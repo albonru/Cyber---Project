@@ -40,15 +40,15 @@ app.get('/pubkey', async (req: Request, res: Response)=>{
     res.json(rsaKeys.publicKey.toJSON())
 })
 
-app.post('/login', async (req: Request, res: Response) => {
+app.post('/censo/login', async (req: Request, res: Response) => {
     const n1 = "Pepito";
     const p1 = "1234";
     const n2 = "Juanito";
     const p2 = "abcd";
 
-    if((req.name == n1 && req.pw == p1) || (req.name == n2 && req.pw == p2)) {
+    if((req.body.name == n1 && req.body.pw == p1) || (req.body.name == n2 && req.body.pw == p2)) {
         const rsaKeys = await rsaKeysPromise
-        console.log(rsaKeys)
+        console.log("login ok "+rsaKeys)
         res.json(rsaKeys.publicKey.toJSON())
     }
     else {

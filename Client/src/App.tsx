@@ -5,10 +5,16 @@ import * as rsa from './rsa'
 import * as bigintConversion from 'bigint-conversion'
 
 function App() {
-  const censo = "http://localhost:3001/censo/";
-  const mesa = "http://localhost:3002/mesa/";
-  const urna = "http://localhost:3003/urna/";
+  const censo = "http://localhost:3001/censo";
+  const mesa = "http://localhost:3002/mesa";
+  const urna = "http://localhost:3003/urna";
   const [messagesend, setmessagesend] = useState<String>("");
+  
+  const [data,setData] = useState({
+    name:"",
+    pw:""
+  });
+  const {name,pw} = data;
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const [messagetxt, setmessagetxt] = useState<String>("");
   let [signedtxt, setsignedtxt] = useState<String>();
@@ -80,63 +86,34 @@ function App() {
     }
   }
 
-  return (
+  const logIn = async () => {
+    const res = await axios.post(`${censo}/login`,data);
+    console.log(res);
+  }
+
+  const submitHandler = (e: { preventDefault: () => void; }) => {
+    e.preventDefault();
+    console.log(data);
+    logIn();
+  }
+
+  const changeHandler = (e: { target: { name: any; value: any; }; }) => {
+    setData({...data,[e.target.name]:[e.target.value]});
+  }
+
+  return(
     <div className="App">
       <header className="App-header">
-        <p>
-          Enter here the message.
-        </p>
-
-        <textarea
-          ref={textareaRef}
-          style={styles.textareaDefaultStyle}
-          onChange={textAreaChange}
-
-        ></textarea>
-        <div>
-          <button className='blindbtn' onClick={() => blindhash()} >blind</button>
-        </div>
-        <div>
-          <textarea
-            ref={textareaRef}
-            style={styles.textareaDefaultStyle}
-            onChange={textAreaChange}
-            value={messagecypher}
-            className='cyphertxt'
-          ></textarea>
-        </div>
-        <div>
-          <button className='sendbtn' onClick={async () => await sendToCenso()}>send to be signed</button>
-        </div>
-
-        <div>
-          <textarea
-            ref={textareaRef}
-            style={styles.textareaDefaultStyle}
-            onChange={textAreaChange}
-            value={"signed message: " + signedtxt}
-            className='cyphertxt'
-          ></textarea>
-        </div>
-        <div>
-          <button className='unblindbtn' onClick={() => unblindMessage()}>unblind</button>
-        </div>
-        <div>
-          <textarea
-            ref={textareaRef}
-            style={styles.textareaDefaultStyle}
-            onChange={textAreaChange}
-            value={"unblinded message: " + undlindtxt}
-            className='cyphertxt'
-          ></textarea>
-        </div>
-        <div>
-          <button className='verifybtn' onClick={async () => await verifyMessage()}>verify</button>
-        </div>
+        <form onSubmit={submitHandler}>
+          <input type="text" name="name" placeholder="username" value={name} onChange={changeHandler}/>
+          <br />
+          <input type="password" name="pw" placeholder="password" value={pw} onChange={changeHandler}/>
+          <br />
+          <button type="submit" name="submit" >LogIn</button>
+        </form>
       </header>
-
     </div>
-  );
+  )
 
 }
 
