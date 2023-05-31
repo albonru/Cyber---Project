@@ -5,6 +5,8 @@ import * as rsa from './rsa'
 import * as bigintConversion from 'bigint-conversion'
 import { sha256 } from 'js-sha256';
 import * as bcu from 'bigint-crypto-utils'  
+import {Buffer} from 'buffer';
+window.Buffer = window.Buffer || Buffer;
 
 function App() {
   const censo = "http://localhost:3001/censo";
@@ -28,13 +30,13 @@ function App() {
     setmessagetxt(event.target.value);
   };
 
-  const [messagecypher, setMessagecypher] = useState(''); //blinded message
+  const [voterblinded, setvoterblinded] = useState<String>(); //blinded message
   const [pubkey, assignPubKey] = useState<rsa.MyRsaPupblicKey>();
 
   const [censopubkey, setcensopubkey] = useState<rsa.MyRsaPupblicKey>();
   const [voterkeys, setvoterkeys] = useState<rsa.KeyPair>();
   
-  const [voterkeyshash, setvoterkeyshash] = useState<rsa.MyRsaPupblicKey>();
+  const [voterkeyshash, setvoterkeyshash] = useState<String>();
 
   
   
@@ -55,32 +57,13 @@ function App() {
     console.log(pubkey);
   }
 
-  const blindhash = async () => {
-    //await getcensopubkey();
-    // let enc: Boolean = false;
-    // while (!enc) {
-    //   if (r % pubkey!.n !== 0n)
-    //     enc = true;
-    //   else
-    //     setr(bigintConversion.bufToBigint(window.crypto.getRandomValues(new Uint8Array(16))));
-    // }
-
-
-
-    setr(bcu.randBetween(censopubkey!.n, 0n))
-    //const blinded = voterkeyshash * (censopubkey!.encrypt(r!) % censopubkey!.n)
-
-    
-    
-    //const blinded = censopubkey!.blind(voterkeyshash, r);
-
-  }
+  
 
   const sendToCenso = async () => {
-    if (messagetxt === "")
+    if (voterblinded === "")
       alert('enter a message');
     else {
-      const res = await axios.post(censo + `/tosign`, { text: messagesend });
+      const res = await axios.post(censo + `/tosign`, { text: voterblinded });
       setsignedtxt(res.data.signed.toString());
     }
   }
@@ -106,14 +89,16 @@ function App() {
 
   const keyToHash = async () => {
     const json = voterkeys!.publicKey.toJSON();
-    json.e = sha256(json.e)
-    json.n = sha256(json.n)
-    return rsa.MyRsaPupblicKey.fromJSON(json)
+    const digest = sha256(JSON.stringify(json))
+    return digest
   }
 
-  const hashvoterpub = async () => {
+  const hashblindvoterpub = async () => {
     const hash = await keyToHash()
-    setvoterkeyshash(hash)
+    setr(bcu.randBetween(censopubkey!.n, 0n))
+    const blinded = censopubkey!.blind(bigintConversion.base64ToBigint(hash), r);
+    setvoterblinded(bigintConversion.bigintToBase64(blinded))
+  
   }
   
   const logIn = async () => {
@@ -121,8 +106,8 @@ function App() {
     console.log(res);
     setcensopubkey(rsa.MyRsaPupblicKey.fromJSON(res.data));
     setvoterkeys(await rsa.generateKeys(2048));
-    await hashvoterpub();
-    await blindhash();
+    await hashblindvoterpub();
+    console.log('hashblinded: '+voterblinded)
   }
 
   const submitHandler = (e: { preventDefault: () => void; }) => {
@@ -145,6 +130,9 @@ function App() {
           <br />
           <button type="submit" name="submit" >LogIn</button>
         </form>
+        <button onClick={() => sendToCenso()}>
+        send to be signed
+        </button>
       </header>
     </div>
   )
