@@ -22,7 +22,7 @@ function App() {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const [messagetxt, setmessagetxt] = useState<String>("");
   let [signedtxt, setsignedtxt] = useState<String>();
-  const [undlindtxt, setMessageunblind] = useState<String>('');
+  const [unblindtxt, setMessageunblind] = useState<String>('');
 
   let [r, setr] = useState<bigint>(bigintConversion.bufToBigint(window.crypto.getRandomValues(new Uint8Array(16))));
   let [unblinded, setunblinded] = useState<bigint>();
@@ -32,10 +32,8 @@ function App() {
 
   const [voterblinded, setvoterblinded] = useState<String>(); //blinded message
   const [pubkey, assignPubKey] = useState<rsa.MyRsaPupblicKey>();
-
   const [censopubkey, setcensopubkey] = useState<rsa.MyRsaPupblicKey>();
   const [voterkeys, setvoterkeys] = useState<rsa.KeyPair>();
-
   const [voterkeyshash, setvoterkeyshash] = useState<String>();
 
   useEffect(() => {
@@ -46,20 +44,28 @@ function App() {
     }
   }, [messagetxt]);
 
-  // OK
-  // FALTA POPUP CONFIRMANT O NO EL LOGIN
+  // OK 3 clicks
   // login -> reb pubkC -> genera Vkeys -> hash + cegado
   const logIn = async () => {
-    const res = await axios.post(`${censo}/login`, data);
-    console.log(res);
-    setcensopubkey(rsa.MyRsaPupblicKey.fromJSON(res.data));
-    console.log(`CLIENT: pubkC n: ${censopubkey?.n}`);
-    console.log(`CLIENT: pubkC e: ${censopubkey?.e}`);
     setvoterkeys(await rsa.generateKeys(2048));
-    console.log(`CLIENT: pubkV n: ${voterkeys?.publicKey.n}`);
-    console.log(`CLIENT: pubkV e: ${voterkeys?.publicKey.e}`);
-    await hashblindvoterpub();
-    console.log('CLIENT: pubkV hash cegado: ' + voterblinded)
+    axios.post(`${censo}/login`, data)
+    .then((res) => {
+      console.log(res);
+      if (res.data === 'error') {
+        alert('Login incorrecte');
+      }
+      else {
+        alert('Login correcte');
+        setcensopubkey(rsa.MyRsaPupblicKey.fromJSON(res.data));
+        console.log(`CLIENT: pubkC n: ${censopubkey?.n}`);
+        console.log(`CLIENT: pubkC e: ${censopubkey?.e}`);
+        console.log(`CLIENT: pubkV n: ${voterkeys?.publicKey.n}`);
+        console.log(`CLIENT: pubkV e: ${voterkeys?.publicKey.e}`);
+        hashblindvoterpub();
+        console.log('CLIENT: pubkV hash cegado: ' + voterblinded)
+      }
+    });
+    
   }
 
   // OK
@@ -80,39 +86,51 @@ function App() {
     return hash
   }
 
-  const getcensopubkey = async () => {
-    const res = await axios.get(`${censo}/pubkey`);
-    // res.data es un json
-    assignPubKey(rsa.MyRsaPupblicKey.fromJSON(res.data));
-    console.log(pubkey);
-  }
-
+  // OK 2 clicks
+  // envia hash cegado i el reb signat
   const sendToCenso = async () => {
     if (voterblinded === "")
-      alert('enter a message');
+      alert('no hi ha hash cegado');
     else {
-      const res = await axios.post(censo + `/tosign`, { text: voterblinded });
+      const res = await axios.post(censo + `/sign`, { text: voterblinded });
       setsignedtxt(res.data.signed.toString());
+      console.log(`CLIENT: signed blind-hash: ${signedtxt}`);
+      if(res.status == 200) {
+        alert('hash cegado y firmado');
+      }
+      else {
+        alert('no se ha podido firmar');
+      }
     }
   }
 
+  // OK 2 clicks
+  // desciega la firma y genera certificado del votante
+  const unblindMessage = async () => {
+    if (signedtxt == null) {
+      alert("not signed yet")
+    } else {
+      let blindsignedbigint = bigintConversion.base64ToBigint(signedtxt.toString());
+      console.log(censopubkey);
+      const u = censopubkey!.unblind(blindsignedbigint, r);
+      setMessageunblind(u.toString());
+      setunblinded(u);
+      console.log(`CLIENT: unblinded: ${unblindtxt}`);
+
+    }
+  }
+  
   const verifyMessage = async () => {
     const verifybigint = pubkey!.verify(unblinded!);
     alert(bigintConversion.bigintToText(verifybigint));
   }
 
-  const unblindMessage = async () => {
-    //await getserverpublickey();
-    if (signedtxt == null) {
-      alert("not signed yet")
-    } else {
-      let blindsignedbigint = bigintConversion.base64ToBigint(signedtxt.toString());
-      console.log("blindsigned: " + blindsignedbigint);
-      console.log("r: " + r);
-      const u = pubkey!.unblind(blindsignedbigint, r);
-      setMessageunblind(u.toString());
-      setunblinded(u);
-    }
+  // unused
+  const getcensopubkey = async () => {
+    const res = await axios.get(`${censo}/pubkey`);
+    // res.data es un json
+    assignPubKey(rsa.MyRsaPupblicKey.fromJSON(res.data));
+    console.log(pubkey);
   }
 
   const submitHandler = (e: { preventDefault: () => void; }) => {
@@ -136,7 +154,11 @@ function App() {
           <button type="submit" name="submit" >LogIn</button>
         </form> <br />
         <button onClick={() => sendToCenso()}>
-          send to be signed
+          send blinded hash to be signed
+        </button>
+        <br />
+        <button onClick={() => unblindMessage()}>
+          generar certificado
         </button>
       </header>
     </div>

@@ -24,7 +24,7 @@ app.get('/censo', (req: Request, res: Response) => {
 })
 
 // OK
-// rep login i torna pubk del censo
+// confirma login i torna pubk del censo
 app.post('/censo/login', async (req: Request, res: Response) => {
     const n1 = "Pepito";
     const p1 = "1234";
@@ -33,7 +33,6 @@ app.post('/censo/login', async (req: Request, res: Response) => {
 
     if ((req.body.name == n1 && req.body.pw == p1) || (req.body.name == n2 && req.body.pw == p2)) {
         const rsaKeys = await rsaKeysPromise
-        console.log("login ok")
         res.json(rsaKeys.publicKey.toJSON())
     }
     else {
@@ -41,16 +40,17 @@ app.post('/censo/login', async (req: Request, res: Response) => {
     }
 })
 
-app.post('/sign', async (req: Request, res: Response) => {
+// OK
+// firma el hash cegado del votant amb la privkC
+app.post('/censo/sign', async (req: Request, res: Response) => {
     let message = req.body.text;
     let messageBigint = bigintConversion.base64ToBigint(message);
-    console.log("blinded: " + messageBigint)
     let signedbigint = (await rsaKeysPromise).privateKey.sign(messageBigint);
     let signed = bigintConversion.bigintToBase64(signedbigint)
-    console.log('signed message: ' + signed);
     res.json({ signed })
 })
 
+// unused
 // cliente pide pubkey, server la manda
 app.get('/pubkey', async (req: Request, res: Response) => {
     const rsaKeys = await rsaKeysPromise
