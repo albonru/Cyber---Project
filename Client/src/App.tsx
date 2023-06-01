@@ -4,8 +4,8 @@ import axios from 'axios'
 import * as rsa from './rsa'
 import * as bigintConversion from 'bigint-conversion'
 import { sha256 } from 'js-sha256';
-import * as bcu from 'bigint-crypto-utils'  
-import {Buffer} from 'buffer';
+import * as bcu from 'bigint-crypto-utils'
+import { Buffer } from 'buffer';
 window.Buffer = window.Buffer || Buffer;
 
 function App() {
@@ -13,12 +13,12 @@ function App() {
   const mesa = "http://localhost:3002/mesa";
   const urna = "http://localhost:3003/urna";
   const [messagesend, setmessagesend] = useState<String>("");
-  
-  const [data,setData] = useState({
-    name:"",
-    pw:""
+
+  const [data, setData] = useState({
+    name: "",
+    pw: ""
   });
-  const {name,pw} = data;
+  const { name, pw } = data;
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const [messagetxt, setmessagetxt] = useState<String>("");
   let [signedtxt, setsignedtxt] = useState<String>();
@@ -35,11 +35,9 @@ function App() {
 
   const [censopubkey, setcensopubkey] = useState<rsa.MyRsaPupblicKey>();
   const [voterkeys, setvoterkeys] = useState<rsa.KeyPair>();
-  
+
   const [voterkeyshash, setvoterkeyshash] = useState<String>();
 
-  
-  
   useEffect(() => {
     if (textareaRef && textareaRef.current) {
       textareaRef.current.style.height = "0px";
@@ -48,7 +46,39 @@ function App() {
     }
   }, [messagetxt]);
 
-  
+  // OK
+  // FALTA POPUP CONFIRMANT O NO EL LOGIN
+  // login -> reb pubkC -> genera Vkeys -> hash + cegado
+  const logIn = async () => {
+    const res = await axios.post(`${censo}/login`, data);
+    console.log(res);
+    setcensopubkey(rsa.MyRsaPupblicKey.fromJSON(res.data));
+    console.log(`CLIENT: pubkC n: ${censopubkey?.n}`);
+    console.log(`CLIENT: pubkC e: ${censopubkey?.e}`);
+    setvoterkeys(await rsa.generateKeys(2048));
+    console.log(`CLIENT: pubkV n: ${voterkeys?.publicKey.n}`);
+    console.log(`CLIENT: pubkV e: ${voterkeys?.publicKey.e}`);
+    await hashblindvoterpub();
+    console.log('CLIENT: pubkV hash cegado: ' + voterblinded)
+  }
+
+  // OK
+  // cega el hash de la pubkv
+  const hashblindvoterpub = async () => {
+    const hash = await keyToHash()
+    setr(bcu.randBetween(censopubkey!.n, 0n))
+    const blinded = censopubkey!.blind(bigintConversion.base64ToBigint(hash), r);
+    setvoterblinded(bigintConversion.bigintToBase64(blinded))
+  }
+
+  // OK
+  // fa el hash de la pubkV
+  const keyToHash = async () => {
+    const json = voterkeys!.publicKey.toJSON();
+    const hash = sha256(JSON.stringify(json))
+    console.log(`CLIENT: pubkV hash: ${hash}`);
+    return hash
+  }
 
   const getcensopubkey = async () => {
     const res = await axios.get(`${censo}/pubkey`);
@@ -56,8 +86,6 @@ function App() {
     assignPubKey(rsa.MyRsaPupblicKey.fromJSON(res.data));
     console.log(pubkey);
   }
-
-  
 
   const sendToCenso = async () => {
     if (voterblinded === "")
@@ -87,29 +115,6 @@ function App() {
     }
   }
 
-  const keyToHash = async () => {
-    const json = voterkeys!.publicKey.toJSON();
-    const digest = sha256(JSON.stringify(json))
-    return digest
-  }
-
-  const hashblindvoterpub = async () => {
-    const hash = await keyToHash()
-    setr(bcu.randBetween(censopubkey!.n, 0n))
-    const blinded = censopubkey!.blind(bigintConversion.base64ToBigint(hash), r);
-    setvoterblinded(bigintConversion.bigintToBase64(blinded))
-  
-  }
-  
-  const logIn = async () => {
-    const res = await axios.post(`${censo}/login`,data);
-    console.log(res);
-    setcensopubkey(rsa.MyRsaPupblicKey.fromJSON(res.data));
-    setvoterkeys(await rsa.generateKeys(2048));
-    await hashblindvoterpub();
-    console.log('hashblinded: '+voterblinded)
-  }
-
   const submitHandler = (e: { preventDefault: () => void; }) => {
     e.preventDefault();
     console.log(data);
@@ -117,21 +122,21 @@ function App() {
   }
 
   const changeHandler = (e: { target: { name: any; value: any; }; }) => {
-    setData({...data,[e.target.name]:[e.target.value]});
+    setData({ ...data, [e.target.name]: [e.target.value] });
   }
 
-  return(
+  return (
     <div className="App">
       <header className="App-header">
         <form onSubmit={submitHandler}>
-          <input type="text" name="name" placeholder="username" value={name} onChange={changeHandler}/>
+          <input type="text" name="name" placeholder="username" value={name} onChange={changeHandler} />
           <br />
-          <input type="password" name="pw" placeholder="password" value={pw} onChange={changeHandler}/>
+          <input type="password" name="pw" placeholder="password" value={pw} onChange={changeHandler} />
           <br />
           <button type="submit" name="submit" >LogIn</button>
-        </form>
+        </form> <br />
         <button onClick={() => sendToCenso()}>
-        send to be signed
+          send to be signed
         </button>
       </header>
     </div>
