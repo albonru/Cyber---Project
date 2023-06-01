@@ -100,4 +100,12 @@ export const generateKeys = async function (bitlength: number): Promise<KeyPair>
 
 }
 
+export class CertificadoVotante {
+  pubkey: MyRsaPupblicKey
+  signature: bigint
 
+  constructor(pubkey: MyRsaPupblicKey, signature: bigint) {
+    this.pubkey = pubkey
+    this.signature = signature
+  }
+}

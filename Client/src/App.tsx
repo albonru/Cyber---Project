@@ -6,23 +6,23 @@ import * as bigintConversion from 'bigint-conversion'
 import { sha256 } from 'js-sha256';
 import * as bcu from 'bigint-crypto-utils'
 import { Buffer } from 'buffer';
+import { blindMessageHash } from 'blind-signature/dist/lib/blind';
 window.Buffer = window.Buffer || Buffer;
 
 function App() {
   const censo = "http://localhost:3001/censo";
   const mesa = "http://localhost:3002/mesa";
   const urna = "http://localhost:3003/urna";
-  const [messagesend, setmessagesend] = useState<String>("");
 
   const [data, setData] = useState({
     name: "",
     pw: ""
   });
   const { name, pw } = data;
+  
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const [messagetxt, setmessagetxt] = useState<String>("");
   let [signedtxt, setsignedtxt] = useState<String>();
-  const [unblindtxt, setMessageunblind] = useState<String>('');
 
   let [r, setr] = useState<bigint>(bigintConversion.bufToBigint(window.crypto.getRandomValues(new Uint8Array(16))));
   let [unblinded, setunblinded] = useState<bigint>();
@@ -30,11 +30,10 @@ function App() {
     setmessagetxt(event.target.value);
   };
 
-  const [voterblinded, setvoterblinded] = useState<String>(); //blinded message
-  const [pubkey, assignPubKey] = useState<rsa.MyRsaPupblicKey>();
+  const [voterblinded, setvoterblinded] = useState<String>();
   const [censopubkey, setcensopubkey] = useState<rsa.MyRsaPupblicKey>();
   const [voterkeys, setvoterkeys] = useState<rsa.KeyPair>();
-  const [voterkeyshash, setvoterkeyshash] = useState<String>();
+  const [votercertificado, setcertificado] = useState<rsa.CertificadoVotante>();
 
   useEffect(() => {
     if (textareaRef && textareaRef.current) {
@@ -44,49 +43,53 @@ function App() {
     }
   }, [messagetxt]);
 
-  // OK 3 clicks
-  // login -> reb pubkC -> genera Vkeys -> hash + cegado
+  // OK
+  // generate rsa key pair for V
+  const generateKeys = async () => {
+    const vkeys = await rsa.generateKeys(2048);
+    console.log(vkeys.publicKey);
+    setvoterkeys(vkeys);
+  }
+
+  // OK
+  // login -> recollir pubkC -> hash + cegado
   const logIn = async () => {
-    setvoterkeys(await rsa.generateKeys(2048));
     axios.post(`${censo}/login`, data)
     .then((res) => {
-      console.log(res);
       if (res.data === 'error') {
         alert('Login incorrecte');
       }
       else {
         alert('Login correcte');
         setcensopubkey(rsa.MyRsaPupblicKey.fromJSON(res.data));
-        console.log(`CLIENT: pubkC n: ${censopubkey?.n}`);
-        console.log(`CLIENT: pubkC e: ${censopubkey?.e}`);
-        console.log(`CLIENT: pubkV n: ${voterkeys?.publicKey.n}`);
-        console.log(`CLIENT: pubkV e: ${voterkeys?.publicKey.e}`);
-        hashblindvoterpub();
-        console.log('CLIENT: pubkV hash cegado: ' + voterblinded)
+        console.log(rsa.MyRsaPupblicKey.fromJSON(res.data));
+        // hashblindvoterpub();
+        // console.log('pubkV hash cegado: ' + voterblinded)
       }
     });
     
   }
 
   // OK
-  // cega el hash de la pubkv
-  const hashblindvoterpub = async () => {
-    const hash = await keyToHash()
-    setr(bcu.randBetween(censopubkey!.n, 0n))
-    const blinded = censopubkey!.blind(bigintConversion.base64ToBigint(hash), r);
-    setvoterblinded(bigintConversion.bigintToBase64(blinded))
-  }
-
-  // OK
   // fa el hash de la pubkV
-  const keyToHash = async () => {
+  const keyToHash = () => {
     const json = voterkeys!.publicKey.toJSON();
     const hash = sha256(JSON.stringify(json))
-    console.log(`CLIENT: pubkV hash: ${hash}`);
+    console.log(`pubkV hash: ${hash}`);;
     return hash
   }
 
-  // OK 2 clicks
+  // OK
+  // cega el hash de la pubkv
+  const hashblindvoterpub = () => {
+    const hash = keyToHash();
+    setr(bcu.randBetween(censopubkey!.n, 0n))
+    const blinded = censopubkey!.blind(bigintConversion.base64ToBigint(hash), r);
+    setvoterblinded(bigintConversion.bigintToBase64(blinded))
+    console.log('pubkV hash cegado: ' + bigintConversion.bigintToBase64(blinded))
+  }
+
+  // OK
   // envia hash cegado i el reb signat
   const sendToCenso = async () => {
     if (voterblinded === "")
@@ -94,9 +97,9 @@ function App() {
     else {
       const res = await axios.post(censo + `/sign`, { text: voterblinded });
       setsignedtxt(res.data.signed.toString());
-      console.log(`CLIENT: signed blind-hash: ${signedtxt}`);
+      console.log(`signed blind-hash: ${res.data.signed.toString()}`);
       if(res.status == 200) {
-        alert('hash cegado y firmado');
+        alert('hash firmado');
       }
       else {
         alert('no se ha podido firmar');
@@ -104,33 +107,24 @@ function App() {
     }
   }
 
-  // OK 2 clicks
+  // OK
   // desciega la firma y genera certificado del votante
   const unblindMessage = async () => {
     if (signedtxt == null) {
       alert("not signed yet")
     } else {
       let blindsignedbigint = bigintConversion.base64ToBigint(signedtxt.toString());
-      console.log(censopubkey);
       const u = censopubkey!.unblind(blindsignedbigint, r);
-      setMessageunblind(u.toString());
       setunblinded(u);
-      console.log(`CLIENT: unblinded: ${unblindtxt}`);
-
+      const cert = new rsa.CertificadoVotante(voterkeys?.publicKey!,u);
+      setcertificado(cert);
+      console.log(cert);
     }
   }
   
   const verifyMessage = async () => {
-    const verifybigint = pubkey!.verify(unblinded!);
-    alert(bigintConversion.bigintToText(verifybigint));
-  }
-
-  // unused
-  const getcensopubkey = async () => {
-    const res = await axios.get(`${censo}/pubkey`);
-    // res.data es un json
-    assignPubKey(rsa.MyRsaPupblicKey.fromJSON(res.data));
-    console.log(pubkey);
+    const verifybigint = voterkeys?.publicKey.verify(unblinded!);
+    alert(bigintConversion.bigintToText(verifybigint!));
   }
 
   const submitHandler = (e: { preventDefault: () => void; }) => {
@@ -146,6 +140,10 @@ function App() {
   return (
     <div className="App">
       <header className="App-header">
+        <button onClick={() => generateKeys()}>
+          generate voter keys
+        </button>
+        <br />
         <form onSubmit={submitHandler}>
           <input type="text" name="name" placeholder="username" value={name} onChange={changeHandler} />
           <br />
@@ -153,12 +151,15 @@ function App() {
           <br />
           <button type="submit" name="submit" >LogIn</button>
         </form> <br />
+        <button onClick={() => hashblindvoterpub()}>
+          generate hash and blind it
+        </button><br />
         <button onClick={() => sendToCenso()}>
           send blinded hash to be signed
         </button>
         <br />
         <button onClick={() => unblindMessage()}>
-          generar certificado
+          generar certificate
         </button>
       </header>
     </div>
