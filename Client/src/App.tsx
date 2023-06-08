@@ -1,5 +1,5 @@
 import './App.css';
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef} from "react";
 import axios from 'axios'
 import * as rsa from './rsa'
 import * as bigintConversion from 'bigint-conversion'
@@ -137,6 +137,13 @@ function App() {
     setData({ ...data, [e.target.name]: [e.target.value] });
   }
 
+  const [topping, setTopping] = useState("Medium")
+
+  const onOptionChange = (e: { target: { value: React.SetStateAction<string>; }; }) => {
+    setTopping(e.target.value)
+  }
+  
+
   return (
     <div className="App">
       <header className="App-header">
@@ -161,6 +168,46 @@ function App() {
         <button onClick={() => unblindMessage()}>
           generar certificate
         </button>
+        <br />
+        <div className="App">
+
+      <h4>Select candidate</h4>
+
+      <input
+        type="radio"
+        name="topping"
+        value="Regular"
+        id="regular"
+        checked={topping === "Regular"}
+        onChange={onOptionChange}
+      />
+      <label htmlFor="regular">Regular</label>
+
+      <input
+        type="radio"
+        name="topping"
+        value="Medium"
+        id="medium"
+        checked={topping === "Medium"}
+        onChange={onOptionChange}
+      />
+      <label htmlFor="medium">Medium</label>
+
+      <input
+        type="radio"
+        name="topping"
+        value="Large"
+        id="large"
+        checked={topping === "Large"}
+        onChange={onOptionChange}
+      />
+      <label htmlFor="large">Large</label>
+
+      <p>
+        Send vote <strong>{topping}</strong>
+      </p>
+    </div>
+
       </header>
     </div>
   )
