@@ -6,9 +6,9 @@ import { Request, Response } from 'express';
 import { Router } from 'express';
 import bodyParser from "body-parser";
 
-const rsaKeysPromise = rsa.generateKeys(2048)
+const rsaKeysPromise = rsa.generateKeys(2048);
 const router = Router();
-const port = 3001
+const port = 3014
 const app = express()
 
 // puerto cliente (URL)
@@ -23,36 +23,43 @@ app.get('/censo', (req: Request, res: Response) => {
     res.send('hello censo')
 })
 
+let users = [
+    {n:"Pepito", p: "1234", gotcert: false}, 
+    {n:"Antonio", p: "qwer", gotcert: false}, 
+    {n:"Carlos", p: "asdf", gotcert: false}, 
+    {n:"Marcos", p: "zxcv", gotcert: false},
+    {n:"Ana", p: "0987", gotcert: false},
+    {n:"Julia", p: "ñlkj", gotcert: false}
+
+
+];
+
+function verifyuser(n:string,p:string,t:string){
+    
+}
+
 // OK
-// confirma login i torna pubk del censo
+// confirma login i verifica primera solicitud
 app.post('/censo/login', async (req: Request, res: Response) => {
-    const n1 = "Pepito";
-    const p1 = "1234";
-    const n2 = "Juanito";
-    const p2 = "abcd";
-
-    if ((req.body.name == n1 && req.body.pw == p1) || (req.body.name == n2 && req.body.pw == p2)) {
-        const rsaKeys = await rsaKeysPromise
-        res.json(rsaKeys.publicKey.toJSON())
+    console.log(req.body);
+    const i = users.findIndex(element => ((element.n === req.body.name)&&(element.p === req.body.pw)&&(element.gotcert===false)));
+    if((i !== -1)){
+        users[i].gotcert=true;
+        let messageBigint = bigintConversion.base64ToBigint(req.body.text);
+        let signedbigint = (await rsaKeysPromise).privateKey.sign(messageBigint);
+        let signed = bigintConversion.bigintToBase64(signedbigint)
+        console.log("signed "+signed)
+        res.json({signed:signed})
     }
-    else {
-        res.send("error");
+    else{
+        res.json("error")
     }
+    
+    
 })
 
-// OK
-// firma el hash cegado del votant amb la privkC
-app.post('/censo/sign', async (req: Request, res: Response) => {
-    let message = req.body.text;
-    let messageBigint = bigintConversion.base64ToBigint(message);
-    let signedbigint = (await rsaKeysPromise).privateKey.sign(messageBigint);
-    let signed = bigintConversion.bigintToBase64(signedbigint)
-    res.json({ signed })
-})
-
-// unused
 // cliente pide pubkey, server la manda
-app.get('/pubkey', async (req: Request, res: Response) => {
+app.get('/censo/pubkey', async (req: Request, res: Response) => {
     const rsaKeys = await rsaKeysPromise
     console.log(rsaKeys)
     res.json(rsaKeys.publicKey.toJSON())

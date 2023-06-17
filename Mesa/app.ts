@@ -4,12 +4,11 @@ import * as rsa from './rsa'
 import * as bigintConversion from 'bigint-conversion'
 import { Request, Response } from 'express';
 import { Router } from 'express';
-import bodyParser from "body-parser";
 
 import * as paillier from 'paillier-bigint'
 //import * as sss from 'shamirs-secret-sharing'
 import {Buffer} from 'buffer';
-//window.Buffer = window.Buffer || Buffer;
+
 
 const rsaKeysPromise = rsa.generateKeys(2048)
 const router = Router();
@@ -19,13 +18,15 @@ let paillierkeys: paillier.KeyPair;
 let publicrsakeys: rsa.MyRsaPupblicKey;
 let recoverpriv;
 
+//genkey
+//split
+//recover
+
 // puerto cliente (URL)
 app.use(cors({
     origin: 'http://localhost:3000'
 }))
 
-app.use(bodyParser.urlencoded({ extended: true }));
-app.use(bodyParser.json())
 app.use(express.urlencoded());
 
 app.get('/mesa', (req: Request, res: Response) => {
@@ -34,6 +35,7 @@ app.get('/mesa', (req: Request, res: Response) => {
 
 app.get('/pubkey', async (req: Request, res: Response) => {
     res.json(publicrsakeys.toJSON())
+    
 })
 
 // app.post('/recover', async (req: Request, res: Response) => {
@@ -72,7 +74,7 @@ app.post('/restorekey', function(request, response, next){
     const json = JSON.parse(recovered)
     console.log('recover key '+json)
     recoverpriv=new paillier.PrivateKey(bigintConversion.base64ToBigint(json.lambda), bigintConversion.base64ToBigint(json.mu), paillierkeys.publicKey)
-    console.log('rcovered'+recoverpriv)
+    console.log('rcovered'+ recoverpriv.toString())
     response.send('ok')
 });
 

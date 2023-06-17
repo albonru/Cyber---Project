@@ -1,47 +1,38 @@
 import './App.css';
-import React, { useState, useEffect, useRef} from "react";
+import React, { useState} from "react";
 import axios from 'axios'
 import * as rsa from './rsa'
 import * as bigintConversion from 'bigint-conversion'
 import { sha256 } from 'js-sha256';
 import * as bcu from 'bigint-crypto-utils'
 import { Buffer } from 'buffer';
-import { blindMessageHash } from 'blind-signature/dist/lib/blind';
+import bigInt from 'big-integer';
+
 window.Buffer = window.Buffer || Buffer;
 
 function App() {
-  const censo = "http://localhost:3001/censo";
-  const mesa = "http://localhost:3002/mesa";
-  const urna = "http://localhost:3003/urna";
+  const censo = "http://localhost:3014/censo/";
+  const mesa = "http://localhost:3002/";
+  const urna = "http://localhost:3009/urna/";
 
   const [data, setData] = useState({
     name: "",
-    pw: ""
+    pw: "",
   });
-  const { name, pw } = data;
-  
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const [messagetxt, setmessagetxt] = useState<String>("");
+  const {name, pw} = data
+
   let [signedtxt, setsignedtxt] = useState<String>();
-
   let [r, setr] = useState<bigint>(bigintConversion.bufToBigint(window.crypto.getRandomValues(new Uint8Array(16))));
-  let [unblinded, setunblinded] = useState<bigint>();
-  const textAreaChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setmessagetxt(event.target.value);
-  };
 
-  const [voterblinded, setvoterblinded] = useState<String>();
+  const [voterblinded, setvoterblinded] = useState<String>("");
   const [censopubkey, setcensopubkey] = useState<rsa.MyRsaPupblicKey>();
+  const [mesapubkey, setmesapubkey] = useState<rsa.MyRsaPupblicKey>();
+
   const [voterkeys, setvoterkeys] = useState<rsa.KeyPair>();
   const [votercertificado, setcertificado] = useState<rsa.CertificadoVotante>();
+  const [voto, setvoto] = useState<{encv:bigint, sign:bigint}>();
 
-  useEffect(() => {
-    if (textareaRef && textareaRef.current) {
-      textareaRef.current.style.height = "0px";
-      const scrollHeight = textareaRef.current.scrollHeight;
-      textareaRef.current.style.height = scrollHeight + "px";
-    }
-  }, [messagetxt]);
+ 
 
   // OK
   // generate rsa key pair for V
@@ -51,23 +42,33 @@ function App() {
     setvoterkeys(vkeys);
   }
 
-  // OK
-  // login -> recollir pubkC -> hash + cegado
-  const logIn = async () => {
-    axios.post(`${censo}/login`, data)
+  //ok
+  const getmesakey = () => {
+    axios.get(`${mesa}pubkey`, )
     .then((res) => {
       if (res.data === 'error') {
-        alert('Login incorrecte');
+        alert('error mesa key');
       }
       else {
-        alert('Login correcte');
-        setcensopubkey(rsa.MyRsaPupblicKey.fromJSON(res.data));
-        console.log(rsa.MyRsaPupblicKey.fromJSON(res.data));
-        // hashblindvoterpub();
-        // console.log('pubkV hash cegado: ' + voterblinded)
+        setmesapubkey(rsa.MyRsaPupblicKey.fromJSON(res.data));
+        console.log('mesa pub key: '+ JSON.stringify(mesapubkey));
       }
     });
-    
+  }
+
+  //ok
+  const getcensokey = () => {
+    axios.get(`${censo}pubkey`, )
+    .then((res) => {
+      if (res.data === 'error') {
+        alert('error censo key');
+      }
+      else {
+        setcensopubkey(rsa.MyRsaPupblicKey.fromJSON(res.data));
+        console.log('censo pub key: '+ JSON.stringify(censopubkey));
+     
+      }
+    });
   }
 
   // OK
@@ -86,25 +87,24 @@ function App() {
     setr(bcu.randBetween(censopubkey!.n, 0n))
     const blinded = censopubkey!.blind(bigintConversion.base64ToBigint(hash), r);
     setvoterblinded(bigintConversion.bigintToBase64(blinded))
-    console.log('pubkV hash cegado: ' + bigintConversion.bigintToBase64(blinded))
+    console.log('pubkV hash cegado: ' + voterblinded)
   }
 
   // OK
-  // envia hash cegado i el reb signat
-  const sendToCenso = async () => {
-    if (voterblinded === "")
-      alert('no hi ha hash cegado');
-    else {
-      const res = await axios.post(censo + `/sign`, { text: voterblinded });
-      setsignedtxt(res.data.signed.toString());
-      console.log(`signed blind-hash: ${res.data.signed.toString()}`);
-      if(res.status == 200) {
-        alert('hash firmado');
+  // login -> hash + cegado
+  const logIn = async () => {
+    await axios.post(`${censo}login`, {name:data.name.toString(), pw:data.pw.toString(), text:voterblinded})
+    .then((res) => {
+      if (res.data === 'error') {
+        alert('Login incorrecte');
       }
       else {
-        alert('no se ha podido firmar');
+        console.log("res signed"+res.data.signed)
+        alert('Login correcte');
+        setsignedtxt(res.data.signed.toString());
+        console.log(`signed blind-hash: ${signedtxt}`);
       }
-    }
+    });
   }
 
   // OK
@@ -115,17 +115,56 @@ function App() {
     } else {
       let blindsignedbigint = bigintConversion.base64ToBigint(signedtxt.toString());
       const u = censopubkey!.unblind(blindsignedbigint, r);
-      setunblinded(u);
       const cert = new rsa.CertificadoVotante(voterkeys?.publicKey!,u);
+      console.log("ccert "+ JSON.stringify(cert.toString()))
       setcertificado(cert);
-      console.log(cert);
     }
   }
-  
-  const verifyMessage = async () => {
-    const verifybigint = voterkeys?.publicKey.verify(unblinded!);
-    alert(bigintConversion.bigintToText(verifybigint!));
+
+  const encryptvote = async () => {
+    let v
+    if (votercertificado == null) {
+      alert("no certificate")
+    } else {
+      if (candidatevalue==="000000001"){
+        v = 1000000001n
+      }else if(candidatevalue==="000001000"){
+        v = 1000001000n
+      }else if (candidatevalue==="001000000"){
+        v = 1001000000n
+      }else{
+        alert("select voter")
+      }
+
+      if (v){
+        const e = mesapubkey!.encrypt(v);
+        const h = sha256(bigintConversion.bigintToBase64(e));
+        const s = voterkeys!.privateKey.sign(bigintConversion.base64ToBigint(h));
+        setvoto({encv:e,sign:s})
+      }
+
+    }
   }
+
+  const sendvoto = async () => {
+    await axios.post(`${urna}dipositar`, {
+      vote:{encv:bigintConversion.bigintToBase64(voto!.encv), sign:bigintConversion.bigintToBase64(voto!.sign)},
+      cert:{pubkey:votercertificado!.pubkey.toJSON(), signature:bigintConversion.bigintToBase64(votercertificado!.signature)}})
+    .then((res) => {
+      if (res.data === 'ok') {
+        alert('send voto correcte');
+      }
+      else {
+        alert('send voto incorrecte');
+      }
+    });
+  }
+
+  
+  // const verifyMessage = async () => {
+  //   const verifybigint = voterkeys?.publicKey.verify(unblinded!);
+  //   alert(bigintConversion.bigintToText(verifybigint!));
+  // }
 
   const submitHandler = (e: { preventDefault: () => void; }) => {
     e.preventDefault();
@@ -137,75 +176,75 @@ function App() {
     setData({ ...data, [e.target.name]: [e.target.value] });
   }
 
-  const [topping, setTopping] = useState("Medium")
+  const [candidatevalue, setcandidatevalue] = useState("")
 
   const onOptionChange = (e: { target: { value: React.SetStateAction<string>; }; }) => {
-    setTopping(e.target.value)
+    setcandidatevalue(e.target.value)
   }
   
 
   return (
     <div className="App">
       <header className="App-header">
-        <button onClick={() => generateKeys()}>
-          generate voter keys
-        </button>
-        <br />
+
+        <button onClick={() => generateKeys()}>generate voter keys</button>
+        <button onClick={() => getcensokey()}>get censo public key</button>
+        <button onClick={() => getmesakey()}>get mesa public key</button>
+
+        <button onClick={() => hashblindvoterpub()}>generate hash and blind it</button><br />
+
         <form onSubmit={submitHandler}>
           <input type="text" name="name" placeholder="username" value={name} onChange={changeHandler} />
           <br />
           <input type="password" name="pw" placeholder="password" value={pw} onChange={changeHandler} />
           <br />
           <button type="submit" name="submit" >LogIn</button>
-        </form> <br />
-        <button onClick={() => hashblindvoterpub()}>
-          generate hash and blind it
-        </button><br />
-        <button onClick={() => sendToCenso()}>
-          send blinded hash to be signed
-        </button>
+        </form> 
+
         <br />
-        <button onClick={() => unblindMessage()}>
-          generar certificate
-        </button>
+        <button onClick={() => unblindMessage()}>generar certificate</button>
         <br />
+
         <div className="App">
-
-      <h4>Select candidate</h4>
-
+      <h5>Select candidate</h5>
+      
+      <label htmlFor="regular">A </label>
+      <label htmlFor="medium">B</label>
+      <label htmlFor="large"> C</label>
+      
+      <div>
       <input
         type="radio"
-        name="topping"
-        value="Regular"
+        name="candidatevalue"
+        value="001000000"
         id="regular"
-        checked={topping === "Regular"}
+        checked={candidatevalue === "001000000"}
         onChange={onOptionChange}
       />
-      <label htmlFor="regular">Regular</label>
-
       <input
         type="radio"
-        name="topping"
-        value="Medium"
+        name="candidatevalue"
+        value="000001000"
         id="medium"
-        checked={topping === "Medium"}
+        checked={candidatevalue === "000001000"}
         onChange={onOptionChange}
       />
-      <label htmlFor="medium">Medium</label>
-
       <input
         type="radio"
-        name="topping"
-        value="Large"
+        name="candidatevalue"
+        value="000000001"
         id="large"
-        checked={topping === "Large"}
+        checked={candidatevalue === "000000001"}
         onChange={onOptionChange}
       />
-      <label htmlFor="large">Large</label>
+      </div>
 
       <p>
-        Send vote <strong>{topping}</strong>
+        Send vote <strong>{candidatevalue}</strong>
       </p>
+      <button onClick={() => encryptvote()}>encript and sign vote</button>
+      <button onClick={() => sendvoto()}>send vote</button>
+
     </div>
 
       </header>
@@ -216,19 +255,3 @@ function App() {
 
 export default App;
 
-const styles: { [name: string]: React.CSSProperties } = {
-  container: {
-    marginTop: 50,
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-  },
-  textareaDefaultStyle: {
-    marginTop: 10,
-    padding: 5,
-    width: 400,
-    display: "block",
-    resize: "none",
-    backgroundColor: "#eee",
-  },
-};
