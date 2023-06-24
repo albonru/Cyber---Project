@@ -8,6 +8,7 @@ import { Router } from 'express';
 import * as paillier from 'paillier-bigint'
 //import * as sss from 'shamirs-secret-sharing'
 import {Buffer} from 'buffer';
+import axios from 'axios';
 
 
 const rsaKeysPromise = rsa.generateKeys(2048)
@@ -16,11 +17,12 @@ const port = 3002
 const app = express()
 let paillierkeys: paillier.KeyPair;
 let publicrsakeys: rsa.MyRsaPupblicKey;
-let recoverpriv;
+let recoverpriv:paillier.PrivateKey;
 
 //genkey
 //split
 //recover
+//getsum
 
 // puerto cliente (URL)
 app.use(cors({
@@ -72,18 +74,18 @@ app.post('/restorekey', function(request, response, next){
     const myArray = sharestxt.split(",");
     const recovered = sss.combine(myArray);
     const json = JSON.parse(recovered)
-    console.log('recover key '+json)
-    recoverpriv=new paillier.PrivateKey(bigintConversion.base64ToBigint(json.lambda), bigintConversion.base64ToBigint(json.mu), paillierkeys.publicKey)
-    console.log('rcovered'+ recoverpriv.toString())
+    const publickey:paillier.PublicKey = new paillier.PublicKey(bigintConversion.base64ToBigint(json.publickey.n), bigintConversion.base64ToBigint(json.publickey.g) )
+    recoverpriv=new paillier.PrivateKey(bigintConversion.base64ToBigint(json.lambda), bigintConversion.base64ToBigint(json.mu), publickey)
     response.send('ok')
 });
 
 
 app.get('/split', async (req: Request, res: Response) => {
-    const jsonKey = { lambda: bigintConversion.bigintToBase64(paillierkeys.privateKey.lambda), mu: bigintConversion.bigintToBase64(paillierkeys.privateKey.mu) };
+    const jsonKey = { lambda: bigintConversion.bigintToBase64(paillierkeys.privateKey.lambda), mu: bigintConversion.bigintToBase64(paillierkeys.privateKey.mu), 
+        publickey: {n:bigintConversion.bigintToBase64(paillierkeys.publicKey.n), g:bigintConversion.bigintToBase64(paillierkeys.publicKey.g)} };
     const secreto = JSON.stringify(jsonKey);
     const sss = require('shamirs-secret-sharing');
-    const shares: Buffer[] = sss.split(secreto, { shares: 3, threshold: 3});
+    const shares: Buffer[] = sss.split(secreto, { shares: 6, threshold: 3});
     const sharesHex: string[] = [];
     shares.forEach((share: Buffer) => {
       sharesHex.push(bigintConversion.bufToHex(share));
@@ -99,6 +101,28 @@ app.get('/genkey', async (req: Request, res: Response) => {
     publicrsakeys = new rsa.MyRsaPupblicKey(paillierkeys.publicKey.g, paillierkeys.publicKey.n)
     res.send('ok')
 })
+
+app.get('/getsum', async (req: Request, res1: Response) => {
+    axios.get(`http://localhost:3009/getvotos`)
+    .then((res) => {
+      if (res.data === 'error') {
+        console.log('error censo key');
+        res1.send('eror')
+      }
+      else{
+        const j = bigintConversion.base64ToBigint(res.data.votos)
+        const s:String = recoverpriv!.decrypt(j).toString()
+        //const s = paillierkeys.privateKey.decrypt(j)
+        const count = s.substring(0,s.length-9);
+        const countA = s.substring(s.length-9,s.length-6);
+        const countB = s.substring(s.length-6,s.length-3);
+        const countC = s.substring(s.length-3,s.length);
+
+        res1.send(`NUM VOTES: ${count} <br> VotesA: ${countA} <br> VotesB: ${countB} <br> VotesC: ${countC}`)
+      }
+    })
+})
+
 
 app.listen(port, function () {
     console.log(`listenning on http://localhost:${port}`)

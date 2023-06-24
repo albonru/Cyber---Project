@@ -7,6 +7,7 @@ import { sha256 } from 'js-sha256';
 import * as bcu from 'bigint-crypto-utils'
 import { Buffer } from 'buffer';
 import bigInt from 'big-integer';
+import * as paillier from "paillier-bigint"
 
 window.Buffer = window.Buffer || Buffer;
 
@@ -26,7 +27,7 @@ function App() {
 
   const [voterblinded, setvoterblinded] = useState<String>("");
   const [censopubkey, setcensopubkey] = useState<rsa.MyRsaPupblicKey>();
-  const [mesapubkey, setmesapubkey] = useState<rsa.MyRsaPupblicKey>();
+  const [mesapubkey, setmesapubkey] = useState<paillier.PublicKey>();
 
   const [voterkeys, setvoterkeys] = useState<rsa.KeyPair>();
   const [votercertificado, setcertificado] = useState<rsa.CertificadoVotante>();
@@ -50,8 +51,12 @@ function App() {
         alert('error mesa key');
       }
       else {
-        setmesapubkey(rsa.MyRsaPupblicKey.fromJSON(res.data));
-        console.log('mesa pub key: '+ JSON.stringify(mesapubkey));
+        const c:paillier.PublicKey = new paillier.PublicKey(bigintConversion.base64ToBigint(res.data.n), bigintConversion.base64ToBigint(res.data.e) )
+        setmesapubkey(c);
+        if (mesapubkey){
+          console.log("mesa pub ok")
+        }
+
       }
     });
   }
@@ -84,7 +89,13 @@ function App() {
   // cega el hash de la pubkv
   const hashblindvoterpub = () => {
     const hash = keyToHash();
-    setr(bcu.randBetween(censopubkey!.n, 0n))
+    let enc: Boolean = false;
+    while (!enc){
+      if (r % censopubkey!.n !== 0n)
+        enc = true;
+      else
+        setr(bigintConversion.bufToBigint(window.crypto.getRandomValues(new Uint8Array(16))));
+    }
     const blinded = censopubkey!.blind(bigintConversion.base64ToBigint(hash), r);
     setvoterblinded(bigintConversion.bigintToBase64(blinded))
     console.log('pubkV hash cegado: ' + voterblinded)

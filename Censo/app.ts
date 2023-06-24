@@ -30,8 +30,6 @@ let users = [
     {n:"Marcos", p: "zxcv", gotcert: false},
     {n:"Ana", p: "0987", gotcert: false},
     {n:"Julia", p: "ñlkj", gotcert: false}
-
-
 ];
 
 function verifyuser(n:string,p:string,t:string){
